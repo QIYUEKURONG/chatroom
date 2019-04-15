@@ -20,14 +20,15 @@ func BroadcastMessage(conn net.Conn, clients []net.Conn) {
 }
 
 // ShowMenu show menu when a client logon.
-/* func ShowMenu(conn net.Conn) int {
+func ShowMenu(conn net.Conn) int {
 
-	var data []string
-	data = data.append(data, "1:注册\n")
-	data = data.append("2:登陆\n")
+	//	var data []string
+	//data = data.append(data, "1:注册\n")
+	//	data = data.append("2:登陆\n")
 	//data=data.append("")
-	conn.Write([]byte(data))
-} */
+	//conn.Write([]byte(data))
+	return 0
+}
 
 func main() {
 	fmt.Println("Launching server...")
