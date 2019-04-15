@@ -27,8 +27,8 @@ func ShowMenu(conn net.Conn) int {
 	//	data = data.append("2:登陆\n")
 	//data=data.append("")
 	//conn.Write([]byte(data))
-	return 0
-}
+	return 1
+}s
 
 func main() {
 	fmt.Println("Launching server...")
