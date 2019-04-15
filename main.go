@@ -5,27 +5,21 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 )
 
-//MesstoDeal  ...
-func MesstoDeal(conn net.Conn, clients []net.Conn) {
+// BroadcastMessage broadcast received message to all clients currently connected.
+func BroadcastMessage(conn net.Conn, clients []net.Conn) {
 	for {
 		// will listen for message to process ending in newline (\n)
 		message, _ := bufio.NewReader(conn).ReadString('\n')
-		// output message received
-		fmt.Print("Message Received:", string(message))
-		// sample process for string received
-		newmessage := strings.ToUpper(message)
 		// send new string back to client
 		for _, cli := range clients {
-			cli.Write([]byte(newmessage))
+			cli.Write([]byte(message))
 		}
 	}
-
 }
 
-//ShowMenu()
+// ShowMenu show menu when a client logon.
 /* func ShowMenu(conn net.Conn) int {
 
 	var data []string
@@ -61,7 +55,7 @@ func main() {
 
 		go func() {
 			//ShowMenu(conn)
-			MesstoDeal(conn, clients)
+			BroadcastMessage(conn, clients)
 		}()
 	}
 }
