@@ -22,12 +22,12 @@ import (
 
 // MyData struct function is to store my data. For example many of net.Conn and database
 type MyData struct {
-	conn         net.Conn    //self
-	clients      *[]net.Conn //record online client
-	db           *sql.DB
-	clientmap    *map[string]net.Conn //record key of usename and value of tcp link
-	username     string               //record self username
-	userpassword string               //record self password
+	conn      net.Conn    //self
+	clients   *[]net.Conn //record online client
+	db        *sql.DB
+	clientmap map[string]net.Conn //record key of usename and value of tcp link
+	username  string              //record self username
+	password  string              //record self password
 }
 
 // BroadcastMessage broadcast received message to all clients currently connected.
@@ -70,7 +70,12 @@ func CreateNewRoom(linkdata *MyData) {
 	for {
 		str := "Welcome to create a new Room for chat,please input new Room num，must be digital\n"
 		linkdata.conn.Write([]byte(str))
-		roomnum, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		roomnum, err1 := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err1 != nil {
+			fmt.Println("CreateNewRoom function's bufio find error,the function will go done")
+			break
+		}
+
 		length := len(roomnum)
 		roomnum = roomnum[0 : length-1]
 
@@ -85,7 +90,12 @@ func CreateNewRoom(linkdata *MyData) {
 			str += str2
 			linkdata.conn.Write([]byte(str))
 			//this is all message about into new create room's people
-			friends, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+			friends, err2 := bufio.NewReader(linkdata.conn).ReadString('\r')
+			if err2 != nil {
+				fmt.Println("CreateNewRoom function's bufio find error,the function will go done")
+				break
+			}
+
 			f := func(c rune) bool {
 				return !unicode.IsLetter(c) && !unicode.IsNumber(c)
 			}
@@ -138,7 +148,12 @@ func ChatOnePerson(linkdata *MyData) {
 			3：在线的话就直接转发
 			4：不在线的话就把这个消息存储在离线表里面
 		*/
-		mess, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		mess, err2 := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err2 != nil {
+
+			fmt.Println("ChatOnePerson function.sorry,we don't get nothing in I/O")
+			break
+		}
 		num := strings.Index(mess, " ")
 		username := mess[0:num]
 		data := mess[num+1:]
@@ -157,7 +172,7 @@ func ChatOnePerson(linkdata *MyData) {
 
 		//等于1 就直接发送
 		if status == 1 {
-			friend := (*(linkdata.clientmap))[username]
+			friend := linkdata.clientmap[username]
 			str := fmt.Sprintf("%s :", linkdata.username)
 			str = str + data + "\n"
 
@@ -215,7 +230,11 @@ func QuitOneRoomnum(linkdata *MyData) {
 		ShowSelfRoomnum(linkdata)
 		str := "please input diginal about your delete’s room\n"
 		linkdata.conn.Write([]byte(str))
-		str1, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		str1, err1 := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err1 != nil {
+			fmt.Println("QuitOneRoomnum function.sorry wo don't get nothing in I/O.")
+			break
+		}
 		length := len(str1)
 		str1 = str1[0 : length-1]
 		num, _ := strconv.Atoi(str1)
@@ -246,7 +265,6 @@ func QuitOneRoomnum(linkdata *MyData) {
 			} else {
 				//如果不相等的话，那么只删除在group_user里面的
 				linkdata.db.Query("DELETE FROM chatroom.group_users WHERE username = ? AND group_id =?", linkdata.username, num)
-
 			}
 			break
 		}
@@ -259,7 +277,11 @@ func SelectRoom(linkdata *MyData) int {
 		str := "please select a room to chat,thanks!\n"
 		linkdata.conn.Write([]byte(str))
 		ShowSelfRoomnum(linkdata)
-		roomnum, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		roomnum, err1 := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err1 != nil {
+			fmt.Println("SelectRoom function.sorry. we don't get nothing in I/O")
+			return -1
+		}
 		//先判断这个房间存在不存在
 
 		err := linkdata.db.QueryRow("SELECT * FROM chatroom.groups WHERE group_id=?", roomnum).Scan()
@@ -272,22 +294,28 @@ func SelectRoom(linkdata *MyData) int {
 			for {
 				str := "please input your message to others,use Enter end,thanks\n"
 				linkdata.conn.Write([]byte(str))
-				message, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+				message, err1 := bufio.NewReader(linkdata.conn).ReadString('\r')
+				if err1 != nil {
+					fmt.Println("SelectRoom function.sorry. we don't get nothing in I/O")
+					return -1
+				}
 				message = message[0 : len(message)-1]
 				rows, err := linkdata.db.Query("SELECT * FROM chatroom.group_users WHERE group_id = ?", roomnum)
 				if err != nil {
 					fmt.Println("databases not link")
 					return -1
-				} else {
-					for rows.Next() {
-						var username string
-						var id int
-						err1 := rows.Scan(&username, &id)
-						if err1 != sql.ErrNoRows {
-							if username == linkdata.username {
-								continue
-							}
-							other := (*(linkdata.clientmap))[username]
+				}
+
+				for rows.Next() {
+					var username string
+					var id int
+					err1 := rows.Scan(&username, &id)
+					if err1 != sql.ErrNoRows {
+						if username == linkdata.username {
+							continue
+						}
+						other, ok := linkdata.clientmap[username]
+						if ok {
 							other.Write([]byte(message))
 							other.Write([]byte("\n"))
 						}
@@ -295,7 +323,11 @@ func SelectRoom(linkdata *MyData) int {
 				}
 				str1 := "if you want to go away the interface,please input 'Y' or 'y',thanks\n"
 				linkdata.conn.Write([]byte(str1))
-				result, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+				result, err2 := bufio.NewReader(linkdata.conn).ReadString('\r')
+				if err2 != nil {
+					fmt.Println("SelectRoom function.sorry. we don't get nothing in I/O")
+					return -1
+				}
 				result = result[0 : len(result)-1]
 				if result == "Y" || result == "y" {
 					return 0
@@ -373,7 +405,8 @@ func NewMenu(linkdata *MyData) int {
 
 		data, err := bufio.NewReader(linkdata.conn).ReadString('\r')
 		if err != nil {
-			fmt.Println("sorry,we get nothing from i/o")
+			fmt.Println("NewMenu function.sorry,we get nothing from i/o")
+			return -1
 		}
 		num := strings.Index(data, "\r")
 		num1, err := strconv.Atoi(data[0:num])
@@ -407,7 +440,12 @@ func RegistAccount(linkdata *MyData) {
 		str := "please register you count and password.\nbetween count and password use ','.\nuse 'Enter' end\n"
 		linkdata.conn.Write([]byte(str))
 
-		message, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		message, err1 := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err1 != nil {
+			fmt.Println("LandingAccount function's bufio find error,the function will go done")
+			break
+		}
+
 		fmt.Println("message", message)
 		num := strings.Index(message, ",")
 		count := message[0:num]
@@ -446,12 +484,19 @@ func RegistAccount(linkdata *MyData) {
 
 // LandingAccount your count and password
 func LandingAccount(linkdata *MyData) {
-	var flag int = 0
+	flag := 0
 	for {
 		//先登陆（三次机会）
 		str := "please press your count and passwordd\nbetween count and password use ','.\nuse 'Enter' end\n"
 		linkdata.conn.Write([]byte(str))
-		mess, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		mess, err1 := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err1 != nil {
+			fmt.Println("LandingAccount function's bufio find error,the function will go done")
+			count := linkdata.username
+			linkdata.db.QueryRow("update chatroom.users set status=0 where username=?", count).Scan()
+			break
+		}
+
 		num := strings.Index(mess, ",")
 		count := mess[0:num]
 		fmt.Println("count ", count)
@@ -478,9 +523,9 @@ func LandingAccount(linkdata *MyData) {
 			linkdata.conn.Write([]byte(str))
 
 			linkdata.db.QueryRow("update chatroom.users set status=1 where username=?", count).Scan(&name)
-			(*(linkdata.clientmap))[count] = linkdata.conn
+			linkdata.clientmap[count] = linkdata.conn
 			linkdata.username = count
-			linkdata.userpassword = password
+			linkdata.password = password
 			offlinedata := make(map[string]string)
 			//查找offline表，是不是有离线的消息
 			var message string
@@ -511,8 +556,7 @@ func LandingAccount(linkdata *MyData) {
 }
 
 // ShowMenu show menu when a client logon.
-func ShowMenu(linkdata *MyData) int {
-
+func ShowMenu(linkdata *MyData) error {
 	for {
 		var mess string
 		mess = "1:registered\n"
@@ -520,7 +564,11 @@ func ShowMenu(linkdata *MyData) int {
 
 		linkdata.conn.Write([]byte(mess))
 
-		message, _ := bufio.NewReader(linkdata.conn).ReadString('\r')
+		message, err := bufio.NewReader(linkdata.conn).ReadString('\r')
+		if err != nil {
+			return fmt.Errorf("read from conn faild: %v", err)
+		}
+
 		fmt.Println("message", message)
 		length := len(message)
 		str := message[0 : length-1]
@@ -537,8 +585,6 @@ func ShowMenu(linkdata *MyData) int {
 		case 2:
 			LandingAccount(linkdata)
 		}
-		//conn.Write([]byte(mess))
-		//return 1
 	}
 }
 
@@ -576,7 +622,7 @@ func main() {
 
 		clients = append(clients, conn)
 
-		linkdata := MyData{conn, &clients, db, &clientmap, "", ""}
+		linkdata := MyData{conn, &clients, db, clientmap, "", ""}
 
 		go func() {
 			ShowMenu(&linkdata)
